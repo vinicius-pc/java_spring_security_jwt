@@ -2,7 +2,9 @@ package br.com.projeto.vo.user;
 
 import java.io.Serializable;
 
-public class PermissionVO implements Serializable {
+import org.springframework.hateoas.RepresentationModel;
+
+public class PermissionVO extends RepresentationModel<PermissionVO> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 

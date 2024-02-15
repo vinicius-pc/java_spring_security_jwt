@@ -3,10 +3,12 @@ package br.com.projeto.vo.user;
 import java.io.Serializable;
 import java.util.List;
 
+import org.springframework.hateoas.RepresentationModel;
 
-public class UserVO implements Serializable {
 
-	private static final long serialVersionUID = 1L;
+public class UserVO extends RepresentationModel<UserVO> implements Serializable {
+
+	private static final long serialVersionUID = 1L; 
 
 	private String userName;
 	

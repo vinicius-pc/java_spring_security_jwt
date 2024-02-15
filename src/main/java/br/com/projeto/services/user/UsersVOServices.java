@@ -5,8 +5,12 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 import org.springframework.stereotype.Service;
 
+import br.com.projeto.controllers.user.UserController;
+import br.com.projeto.exceptions.RequiredObjectIsNullException;
 import br.com.projeto.model.security.Permission;
 import br.com.projeto.model.security.User;
 import br.com.projeto.repositories.PermissionRepository;
@@ -35,6 +39,7 @@ public class UsersVOServices {
 
 
 	public UserVO loadUserVOByUsername(String name) throws UsernameNotFoundException {
+		if (name == null) throw new RequiredObjectIsNullException();
 		var user = uRepository.findByUsername(name);
 		if (user != null) {
 			List<PermissionVO> permissionVOList = new ArrayList<>();
@@ -42,7 +47,9 @@ public class UsersVOServices {
 			for (Permission permission : permissionUser ) {
 				permissionVOList.add(new PermissionVO(permission.getDescription()));
 			}
-			return new UserVO(user.getUsername(),user.getFullName(),null,permissionVOList);
+			UserVO vo = new UserVO(user.getUsername(),user.getFullName(),null,permissionVOList);
+			vo.add(linkTo(methodOn(UserController.class).findByUserName(name,"")).withSelfRel());  //hateoas implement!
+			return vo;
 		} else {
 			throw new UsernameNotFoundException("Username " + name + " not found!");
 		}
@@ -58,13 +65,17 @@ public class UsersVOServices {
 				for (Permission permission : permissionUser ) {
 					permissionVOList.add(new PermissionVO(permission.getDescription()));
 				}
-				usersVO.add(new UserVO(user.getUsername(),user.getFullName(),null,permissionVOList));
+				UserVO vo = new UserVO(user.getUsername(),user.getFullName(),null,permissionVOList);
+				vo.add(linkTo(methodOn(UserController.class).findByUserName(user.getUsername(),"")).withSelfRel());  //hateoas implement!				
+				usersVO.add(vo);
 			}
 		}
 		return usersVO;
 	}
 	
 	public UserVO createUser(UserVO userVO) throws UsernameNotFoundException {
+		if (userVO == null) throw new RequiredObjectIsNullException();
+		
 		var existingUser = uRepository.findByUsername(userVO.getUserName());
 		if (existingUser == null) {
 			List<Permission> permissionUser = new ArrayList<>();
@@ -88,6 +99,7 @@ public class UsersVOServices {
 			} else {
 				// insert
 				user = uRepository.save(user);
+				userVO.add(linkTo(methodOn(UserController.class).create(userVO,"")).withSelfRel());  //hateoas implement!
 				return userVO;
 			}
 		} else {
@@ -97,6 +109,7 @@ public class UsersVOServices {
 	}
 
 	public UserVO updateUser(UserVO userVO) throws UsernameNotFoundException {
+		if (userVO == null) throw new RequiredObjectIsNullException();
 		var existingUser = uRepository.findByUsername(userVO.getUserName());
 		if (existingUser != null) {
 			List<Permission> permissionUser = new ArrayList<>();
@@ -118,6 +131,7 @@ public class UsersVOServices {
 			user.setEnabled(true);
 			// update
 			user = uRepository.save(user);
+			userVO.add(linkTo(methodOn(UserController.class).Update(userVO,"")).withSelfRel());  //hateoas implement!
 			return userVO;
 		} else {
 			throw new UsernameNotFoundException("Username " + userVO.getUserName() + " not found!");
@@ -125,6 +139,8 @@ public class UsersVOServices {
 	}
 
 	public void updatePassword(UserPasswordVO userPasswordVO) throws UsernameNotFoundException {
+		if (userPasswordVO == null) throw new RequiredObjectIsNullException();
+		
 		var existingUser = uRepository.findByUsername(userPasswordVO.getUserName());
 		if (existingUser != null) {
 			User user = new User();
@@ -149,6 +165,8 @@ public class UsersVOServices {
 	}
 	
 	public void disableOrEnableUser(UserEnabledVO userEnabledVO) throws UsernameNotFoundException {
+		if (userEnabledVO == null) throw new RequiredObjectIsNullException();
+		
 		var existingUser = uRepository.findByUsername(userEnabledVO.getUserName());
 		if (existingUser != null) {
 			User user = new User();

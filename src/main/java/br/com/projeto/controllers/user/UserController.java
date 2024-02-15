@@ -1,6 +1,7 @@
 package br.com.projeto.controllers.user;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -214,17 +215,17 @@ public class UserController {
 
 	
 	private boolean checkIfParamsIsNotNull(String param1) {
-		return param1 == null || param1.isBlank() ;
+		return Objects.isNull(param1) || param1.isBlank() ;
 	}
 	
 	private boolean checkIfParamsIsNotNull(String param1, String param2) {
-		return param1 == null || param1.isBlank() ||
-				param2 == null || param2.isBlank();
+		return 	Objects.isNull(param1) || param1.isBlank() ||
+				Objects.isNull(param2) || param2.isBlank();
 	}
 	
 	private boolean checkIfParamsIsNotNull(String param1, String param2, String param3) {
-		return 	param1 == null || param1.isBlank() ||
-				param2 == null || param2.isBlank() ||
-				param3 == null || param3.isBlank();
+		return 	Objects.isNull(param1) || param1.isBlank() ||
+				Objects.isNull(param2) || param2.isBlank() ||
+				Objects.isNull(param3) || param3.isBlank();
 	}
 }
