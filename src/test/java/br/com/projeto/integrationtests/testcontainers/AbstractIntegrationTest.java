@@ -15,6 +15,7 @@ import org.testcontainers.lifecycle.Startables;
 public class AbstractIntegrationTest {
 
 	static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+		// configuração do cointainer para acessar o mysql!
 		
 		static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0.29"); // ver em https://hub.docker.com/_/mysql a versao
 		
