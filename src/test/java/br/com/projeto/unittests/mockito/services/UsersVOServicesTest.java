@@ -1,6 +1,7 @@
 package br.com.projeto.unittests.mockito.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
@@ -17,6 +18,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import br.com.projeto.exceptions.RequiredObjectIsNullException;
@@ -50,6 +57,9 @@ class UsersVOServicesTest {
 
 	@Mock
 	PermissionRepository pRepository;
+	
+	//@Autowired
+	//PagedResourcesAssembler<UserVO> UserVOAssembler;	
 
 	@BeforeEach
 	void setUpMocks() throws Exception {
@@ -78,19 +88,28 @@ class UsersVOServicesTest {
 
 	@Test
 	void testLoadUsersVO() {
-		List<User> users = input.mockEntityList();
+		Integer page = 0;
+		Integer size = 2;
+		var sortDirection = Direction.ASC;
+		Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, "userName"));
+		List<User> users = input.mockEntityList(size);
 		users.forEach(user -> {
 			user.setPermissions(mockPermission.mockPermissions(1));	// utilizando um laço foreach lambda para incluir as permissoes.		
 		});
-		when(repository.findAll()).thenReturn(users);
-		var results = service.loadUsersVO();
-		///System.out.println(result.toString());  // para ver o valor do link hateoas
-		var resultTEN = results.get(10);
-		User user  = input.mockEntity(10);
-		assertTrue(resultTEN.toString().contains("links: [</api/user/USER%20NAME%20TEST%2010>;rel=\"self\"]"));
+		Page<User> userPage = new PageImpl<>(users, pageable, users.size()); // converte lista para page!
+		when(repository.findAll(pageable)).thenReturn(userPage);
+		var results = service.loadUsersVO(pageable);
+		assertNotNull(results);
+		List<UserVO> resultsReturn = results.getContent();
+		///System.out.println(resultsReturn.toString());  // para ver o valor do link hateoas
+		assertTrue(resultsReturn.toString().contains("[links: [</api/user/USER%20NAME%20TEST%200>;rel=\"self\"], links: [</api/user/USER%20NAME%20TEST%201>;rel=\"self\"]]"));
+		var resultTEN = resultsReturn.get(1);
+		User user  = input.mockEntity(1);
 		assertEquals(user.getFullName(), resultTEN.getFullName());
 		assertEquals(user.getUserName(), resultTEN.getUserName());
-		assertEquals(null, resultTEN.getPassword());		
+		assertEquals(null, resultTEN.getPassword());
+		assertEquals(0, results.getPageable().getPageNumber()); 
+		assertEquals(2, results.getPageable().getPageSize()); 
 	}
 
 	@Test

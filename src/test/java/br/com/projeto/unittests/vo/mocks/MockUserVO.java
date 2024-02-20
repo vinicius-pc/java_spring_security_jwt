@@ -53,4 +53,11 @@ public class MockUserVO {
 		return users;
 	}
 	
+	public List<User> mockEntityList(Integer number) {
+		List<User> users = new ArrayList<User>();
+		for (int i = 0; i < number; i++) {
+			users.add(mockEntity(i));
+		}
+		return users;
+	}
 }

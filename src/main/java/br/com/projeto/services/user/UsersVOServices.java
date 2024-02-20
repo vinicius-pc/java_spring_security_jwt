@@ -1,12 +1,16 @@
 package br.com.projeto.services.user;
 
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
 import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 import org.springframework.stereotype.Service;
 
 import br.com.projeto.controllers.user.UserController;
@@ -55,10 +59,14 @@ public class UsersVOServices {
 		}
 	}
 	
-	public List<UserVO> loadUsersVO() {
+	public Page<UserVO> loadUsersVO(Pageable pageable) {
+		// retorna uma lista paginada de usuariosVO
 		List<UserVO> usersVO = new ArrayList<>();
-		List<User> users = uRepository.findAll();
-		if (users != null) {
+		var usersPage = uRepository.findAll(pageable);
+		if (usersPage != null && usersPage.hasContent()) {
+			List<User> users = new ArrayList<>();
+			users = usersPage.getContent();  // converte o page para lista!
+			// agora mapeia user para userVO e permission para permissionVO
 			for (User user : users) {
 				List<PermissionVO> permissionVOList = new ArrayList<>();
 				List<Permission> permissionUser = (List<Permission>) user.getPermissions();
@@ -69,8 +77,11 @@ public class UsersVOServices {
 				vo.add(linkTo(methodOn(UserController.class).findByUserName(user.getUsername(),"")).withSelfRel());  //hateoas implement!				
 				usersVO.add(vo);
 			}
+			//System.out.println(usersVO.toString());
+			Page<UserVO> usersPageReturn = new PageImpl<>(usersVO, pageable, usersVO.size()); // converte lista para page!
+			return usersPageReturn;
 		}
-		return usersVO;
+		return null;
 	}
 	
 	public UserVO createUser(UserVO userVO) throws UsernameNotFoundException {
