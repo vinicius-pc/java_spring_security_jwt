@@ -10,6 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.PagedModel;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +40,9 @@ public class UsersVOServices {
 	@Autowired
 	PermissionRepository pRepository;
 
+	@Autowired
+	PagedResourcesAssembler<UserVO> UserVOAssembler;
+	
 	public UsersVOServices(UserRepository uRepository, PermissionRepository pRepository) {
 		this.uRepository = uRepository;
 		this.pRepository = pRepository;
@@ -59,7 +66,7 @@ public class UsersVOServices {
 		}
 	}
 	
-	public Page<UserVO> loadUsersVO(Pageable pageable) {
+	public PagedModel<EntityModel<UserVO>> loadUsersVO(Pageable pageable, String tokenJWT) {
 		// retorna uma lista paginada de usuariosVO
 		List<UserVO> usersVO = new ArrayList<>();
 		var usersPage = uRepository.findAll(pageable);
@@ -79,7 +86,17 @@ public class UsersVOServices {
 			}
 			//System.out.println(usersVO.toString());
 			Page<UserVO> usersPageReturn = new PageImpl<>(usersVO, pageable, usersVO.size()); // converte lista para page!
-			return usersPageReturn;
+			
+			
+			Link link = linkTo(
+					methodOn(UserController.class)
+						.findAllUsers(tokenJWT, pageable.getPageNumber(),
+								pageable.getPageSize(),
+								"asc")).withSelfRel();  // coloca o link HATEOAS no final!
+			
+			var assembler = UserVOAssembler.toModel(usersPageReturn,link);
+			
+			return assembler;
 		}
 		return null;
 	}

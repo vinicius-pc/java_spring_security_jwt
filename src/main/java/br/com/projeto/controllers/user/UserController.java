@@ -1,19 +1,13 @@
 package br.com.projeto.controllers.user;
 
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
-
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
-import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.hateoas.EntityModel;
-import org.springframework.hateoas.Link;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -59,9 +53,6 @@ public class UserController {
 	@Autowired
 	UserAccessValid userAccessValid;
 	
-	@Autowired
-	PagedResourcesAssembler<UserVO> UserVOAssembler;
-	
 	@Operation(summary = "List all users, note : password is null in this case", 
 			   description="List all users, note : password is null in this case",
 			   responses = {
@@ -89,21 +80,8 @@ public class UserController {
 		}
 		var sortDirection = "desc".equalsIgnoreCase(direction) ? Direction.DESC : Direction.ASC;
 		Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, "userName"));
-		var usersPageReturn = findAllUsers(pageable);
 
-		// apresenta erro no teste unitario (sem utilizar cotainer, retirei do service!)
-		Link link = linkTo(
-				methodOn(UserController.class)
-					.findAllUsers(pageable)).withSelfRel();  // coloca o link HATEOAS no final!
-		
-		var assembler = UserVOAssembler.toModel(usersPageReturn,link);
-		return ResponseEntity.ok(assembler);
-	}
-
-	public Page<UserVO> findAllUsers(Pageable pageable) {
-		// separei o page do pagedmodel para poder fazer o teste unitario sem utilizar container!
-		// para utilizar o teste completo, sera necessario criar um token primeiro e depois verificar o pagedmodel.  
-		return service.loadUsersVO(pageable);
+		return ResponseEntity.ok(service.loadUsersVO(pageable,tokenJWT));
 	}
 
 	@Operation(summary = "Return a existing user, note : password is null in this case",

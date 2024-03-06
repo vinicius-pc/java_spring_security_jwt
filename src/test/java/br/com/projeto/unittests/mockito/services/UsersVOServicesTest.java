@@ -1,5 +1,6 @@
 package br.com.projeto.unittests.mockito.services;
 
+import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -7,26 +8,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
-
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Direction;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import br.com.projeto.configs.TestConfigs;
 import br.com.projeto.exceptions.RequiredObjectIsNullException;
+import br.com.projeto.integrationtests.testcontainers.AbstractIntegrationTest;
 import br.com.projeto.model.security.Permission;
 import br.com.projeto.model.security.User;
 import br.com.projeto.repositories.PermissionRepository;
@@ -36,13 +41,28 @@ import br.com.projeto.unittests.vo.mocks.MockPermissionVO;
 import br.com.projeto.unittests.vo.mocks.MockUserEnabledVO;
 import br.com.projeto.unittests.vo.mocks.MockUserPasswordVO;
 import br.com.projeto.unittests.vo.mocks.MockUserVO;
+import br.com.projeto.unittests.vo.wrappers.WrapperUsersVO;
+import br.com.projeto.vo.security.AccountCredentialsVO;
+import br.com.projeto.vo.security.TokenVO;
 import br.com.projeto.vo.user.UserEnabledVO;
 import br.com.projeto.vo.user.UserPasswordVO;
 import br.com.projeto.vo.user.UserVO;
+import io.restassured.builder.RequestSpecBuilder;
+import io.restassured.filter.log.LogDetail;
+import io.restassured.filter.log.RequestLoggingFilter;
+import io.restassured.filter.log.ResponseLoggingFilter;
+import io.restassured.specification.RequestSpecification;
 
 @TestInstance(Lifecycle.PER_CLASS)
 @ExtendWith(MockitoExtension.class)
-class UsersVOServicesTest {
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT, properties = {"server.port=8888"})
+@TestMethodOrder(OrderAnnotation.class)
+class UsersVOServicesTest extends AbstractIntegrationTest {
+	
+	private static RequestSpecification specification;
+	private static ObjectMapper objectMapper;	
+	//private static UserVO user;
 	
 	MockUserVO input;
 	MockPermissionVO mockPermission;
@@ -61,6 +81,13 @@ class UsersVOServicesTest {
 	//@Autowired
 	//PagedResourcesAssembler<UserVO> UserVOAssembler;	
 
+	@BeforeAll
+	public static void setup() {
+		objectMapper = new ObjectMapper();
+		objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);		
+		//user = new UserVO();
+	}
+	
 	@BeforeEach
 	void setUpMocks() throws Exception {
 		mockUserPassword = new MockUserPasswordVO();
@@ -69,8 +96,39 @@ class UsersVOServicesTest {
 		input = new MockUserVO();
 		MockitoAnnotations.openMocks(this);
 	}
+	
+	@Test
+	@Order(0)
+	public void authorization() throws JsonMappingException, JsonProcessingException {
+		// primeiramente, devemos obter um JWT acces token valido!
+		AccountCredentialsVO user = new AccountCredentialsVO("leandro", "admin123");
+		
+		var accessToken = given()
+				.basePath("/auth/signin")
+					.port(TestConfigs.SERVER_PORT)
+					.contentType(TestConfigs.CONTENT_TYPE_JSON)
+				.body(user)
+					.when()
+				.post()
+					.then()
+						.statusCode(200)
+							.extract()
+							.body()
+								.as(TokenVO.class)
+							.getAccessToken();
+		
+		specification = new RequestSpecBuilder()
+				.addHeader(TestConfigs.HEADER_PARAM_AUTHORIZATION, "Bearer " + accessToken)
+				.setBasePath("/api/user")
+				.setPort(TestConfigs.SERVER_PORT)
+					.addFilter(new RequestLoggingFilter(LogDetail.ALL))
+					.addFilter(new ResponseLoggingFilter(LogDetail.ALL))
+				.build();
+	}
+	
 
 	@Test
+	@Order(1)
 	void testLoadUserVOByUsername() {		
 		User user = input.mockEntity(1);
 		user.setPermissions(mockPermission.mockPermissions(1));
@@ -87,32 +145,33 @@ class UsersVOServicesTest {
 	}
 
 	@Test
-	void testLoadUsersVO() {
-		Integer page = 0;
-		Integer size = 2;
-		var sortDirection = Direction.ASC;
-		Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, "userName"));
-		List<User> users = input.mockEntityList(size);
-		users.forEach(user -> {
-			user.setPermissions(mockPermission.mockPermissions(1));	// utilizando um laço foreach lambda para incluir as permissoes.		
-		});
-		Page<User> userPage = new PageImpl<>(users, pageable, users.size()); // converte lista para page!
-		when(repository.findAll(pageable)).thenReturn(userPage);
-		var results = service.loadUsersVO(pageable);
-		assertNotNull(results);
-		List<UserVO> resultsReturn = results.getContent();
-		///System.out.println(resultsReturn.toString());  // para ver o valor do link hateoas
-		assertTrue(resultsReturn.toString().contains("[links: [</api/user/USER%20NAME%20TEST%200>;rel=\"self\"], links: [</api/user/USER%20NAME%20TEST%201>;rel=\"self\"]]"));
-		var resultTEN = resultsReturn.get(1);
-		User user  = input.mockEntity(1);
-		assertEquals(user.getFullName(), resultTEN.getFullName());
-		assertEquals(user.getUserName(), resultTEN.getUserName());
-		assertEquals(null, resultTEN.getPassword());
-		assertEquals(0, results.getPageable().getPageNumber()); 
-		assertEquals(2, results.getPageable().getPageSize()); 
+	@Order(2)
+	void testLoadUsersVO() throws JsonMappingException, JsonProcessingException  {
+
+		var content = given().spec(specification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+				.accept(TestConfigs.CONTENT_TYPE_JSON)
+				.queryParams("page", 1, "size", 1, "direction", "asc")
+					.when()
+					.get()
+				.then()
+					.statusCode(200)
+						.extract()
+						.body()
+							.asString();
+		// retorna um json no formato pagina da lista de usuarios!
+		// temos que converter o json para uma lista de objetos!
+		WrapperUsersVO wrapper = objectMapper.readValue(content,WrapperUsersVO.class);
+		var usersVO = wrapper.getEmbedded().getUsers();
+		UserVO user = usersVO.get(0);
+		assertNotNull(user.getFullName());
+		assertNotNull(user.getUserName());
+		assertNotNull(user.getLinks());
+		
 	}
 
 	@Test
+	@Order(3)
 	void testCreateUser() {
 		Permission permission = mockPermission.mockEntity(1);
 		User userToInsert = input.mockEntity(1);
@@ -135,6 +194,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(4)
 	void testUpdateUser() {
 		Permission permission = mockPermission.mockEntity(1);
 		User user = input.mockEntity(1);
@@ -154,6 +214,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(5)
 	void testUpdatePassword() {
 		UserPasswordVO userPasswordVO = mockUserPassword.mockEntityVO(1);
 		User user = input.mockEntity(1);
@@ -164,6 +225,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(6)
 	void testDisableOrEnableUser() {
 		UserEnabledVO userEnabledVO = mockUserEnabledVO.mockEntityVO(1);
 		User user = input.mockEntity(1);
@@ -174,6 +236,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(7)
 	void testCreateNullUser() {
 		Exception exception = assertThrows(RequiredObjectIsNullException.class, () -> {
 			service.createUser(null);
@@ -184,6 +247,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(8)
 	void testUpdateNullUser() {
 		Exception exception = assertThrows(RequiredObjectIsNullException.class, () -> {
 			service.updateUser(null);
@@ -194,6 +258,7 @@ class UsersVOServicesTest {
 	}
 	
 	@Test
+	@Order(9)
 	void testCreateUserFound() {
 		UserVO userVO = input.mockEntityVO(1);
 		User user = input.mockEntity(1);
@@ -209,6 +274,7 @@ class UsersVOServicesTest {
 	}
 
 	@Test
+	@Order(10)
 	void testUpdateUserNotFound() {
 		UserVO userVO = input.mockEntityVO(1);
 		when(repository.findByUsername(userVO.getUserName())).thenReturn(null);

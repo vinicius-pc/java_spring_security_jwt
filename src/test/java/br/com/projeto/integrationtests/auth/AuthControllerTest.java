@@ -3,9 +3,6 @@ package br.com.projeto.integrationtests.auth;
 import static io.restassured.RestAssured.given;
 import static org.junit.Assert.assertNotNull;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -25,7 +22,7 @@ import br.com.projeto.vo.security.TokenVO;
 class AuthControllerTest  extends AbstractIntegrationTest {
 
 	// para testarmos o login, não podemos mockar o usuario, temos que fazer via container por causa do spring security
-	// pode ser feito diretamente ao banco de dados, retirando o " extends AbstractIntegrationTest "
+	// pode ser feito diretamente ao banco de dados, retirando o " extends AbstractIntegrationTest ", mas isso ira expor uma conta usuario e senha!
 	private static TokenVO tokenVO;
 	
 	@Test
