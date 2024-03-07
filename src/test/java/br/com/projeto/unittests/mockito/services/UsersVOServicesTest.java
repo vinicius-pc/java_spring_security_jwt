@@ -3,26 +3,14 @@ package br.com.projeto.unittests.mockito.services;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -30,13 +18,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import br.com.projeto.configs.TestConfigs;
-import br.com.projeto.exceptions.RequiredObjectIsNullException;
 import br.com.projeto.integrationtests.testcontainers.AbstractIntegrationTest;
-import br.com.projeto.model.security.Permission;
-import br.com.projeto.model.security.User;
-import br.com.projeto.repositories.PermissionRepository;
-import br.com.projeto.repositories.UserRepository;
-import br.com.projeto.services.user.UsersVOServices;
 import br.com.projeto.unittests.vo.mocks.MockPermissionVO;
 import br.com.projeto.unittests.vo.mocks.MockUserEnabledVO;
 import br.com.projeto.unittests.vo.mocks.MockUserPasswordVO;
@@ -53,39 +35,24 @@ import io.restassured.filter.log.RequestLoggingFilter;
 import io.restassured.filter.log.ResponseLoggingFilter;
 import io.restassured.specification.RequestSpecification;
 
-@TestInstance(Lifecycle.PER_CLASS)
-@ExtendWith(MockitoExtension.class)
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT, properties = {"server.port=8888"})
 @TestMethodOrder(OrderAnnotation.class)
 class UsersVOServicesTest extends AbstractIntegrationTest {
 	
-	private static RequestSpecification specification;
+	private static RequestSpecification userSpecification;
 	private static ObjectMapper objectMapper;	
-	//private static UserVO user;
+	private static String accessToken;
 	
 	MockUserVO input;
 	MockPermissionVO mockPermission;
 	MockUserPasswordVO mockUserPassword;
 	MockUserEnabledVO mockUserEnabledVO;
 	
-	@InjectMocks
-	private UsersVOServices service;
-
-	@Mock
-	UserRepository repository;
-
-	@Mock
-	PermissionRepository pRepository;
-	
-	//@Autowired
-	//PagedResourcesAssembler<UserVO> UserVOAssembler;	
-
 	@BeforeAll
 	public static void setup() {
 		objectMapper = new ObjectMapper();
 		objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);		
-		//user = new UserVO();
 	}
 	
 	@BeforeEach
@@ -94,7 +61,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		mockPermission = new MockPermissionVO();
 		mockUserEnabledVO = new MockUserEnabledVO();
 		input = new MockUserVO();
-		MockitoAnnotations.openMocks(this);
+		//MockitoAnnotations.openMocks(this);
 	}
 	
 	@Test
@@ -103,7 +70,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		// primeiramente, devemos obter um JWT acces token valido!
 		AccountCredentialsVO user = new AccountCredentialsVO("leandro", "admin123");
 		
-		var accessToken = given()
+		accessToken = given()
 				.basePath("/auth/signin")
 					.port(TestConfigs.SERVER_PORT)
 					.contentType(TestConfigs.CONTENT_TYPE_JSON)
@@ -117,7 +84,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 								.as(TokenVO.class)
 							.getAccessToken();
 		
-		specification = new RequestSpecBuilder()
+		userSpecification = new RequestSpecBuilder()
 				.addHeader(TestConfigs.HEADER_PARAM_AUTHORIZATION, "Bearer " + accessToken)
 				.setBasePath("/api/user")
 				.setPort(TestConfigs.SERVER_PORT)
@@ -129,26 +96,31 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 
 	@Test
 	@Order(1)
-	void testLoadUserVOByUsername() {		
-		User user = input.mockEntity(1);
-		user.setPermissions(mockPermission.mockPermissions(1));
-
-		when(repository.findByUsername(user.getUserName())).thenReturn(user);
+	void testLoadUserVOByUsername() throws JsonMappingException, JsonProcessingException {		
+		var content = given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.pathParam("userName", "leandro")
+					.when()
+					.get("{userName}")
+				.then()
+					.statusCode(200)
+						.extract()
+						.body()
+							.asString();
 		
-		var result = service.loadUserVOByUsername(user.getUserName());
-		///System.out.println(result.toString());  // para ver o valor do link hateoas
-		assertTrue(result.toString().contains("links: [</api/user/USER%20NAME%20TEST%201>;rel=\"self\"]"));
-		assertEquals(user.getFullName(), result.getFullName());
-		assertEquals(user.getUserName(), result.getUserName());
-		assertEquals(null, result.getPassword());
-		assertEquals(mockPermission.mockPermissionsVO(1), result.getPermissions());
+		UserVO result = objectMapper.readValue(content, UserVO.class);
+		assertNotNull(result);
+		assertNotNull(result.getFullName());
+		assertNotNull(result.getUserName());
+		assertEquals("Leandro Costa", result.getFullName());
+		assertEquals("leandro", result.getUserName());
 	}
 
 	@Test
 	@Order(2)
 	void testLoadUsersVO() throws JsonMappingException, JsonProcessingException  {
 
-		var content = given().spec(specification)
+		var content = given().spec(userSpecification)
 				.contentType(TestConfigs.CONTENT_TYPE_JSON)
 				.accept(TestConfigs.CONTENT_TYPE_JSON)
 				.queryParams("page", 1, "size", 1, "direction", "asc")
@@ -172,120 +144,183 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 
 	@Test
 	@Order(3)
-	void testCreateUser() {
-		Permission permission = mockPermission.mockEntity(1);
-		User userToInsert = input.mockEntity(1);
-		userToInsert.setPermissions(mockPermission.mockPermissions(1));
-		User user = userToInsert;
-		userToInsert.setId(null);
-		when(pRepository.findByDescription("DESCRIPTION TEST 1")).thenReturn(permission);
-		when(repository.findByUsername(userToInsert.getUserName())).thenReturn(null);
-		lenient().when(repository.save(userToInsert)).thenReturn(user);
-		UserVO userVO = input.mockEntityVO(1);
-		userVO.setPermissions(mockPermission.mockPermissionsVO(1));
+	void testCreateUser() throws JsonMappingException, JsonProcessingException {
+		UserVO userToInsert = input.mockEntityVO(1); // novo usuario!
+		userToInsert.setPermissions(mockPermission.mockPermissionsVO(1));
 		
-		var result = service.createUser(userVO);
-		///System.out.println(result.toString());  // para ver o valor do link hateoas
-		assertTrue(result.toString().contains("links: [</api/user>;rel=\"self\"]"));
-		assertEquals(userVO.getFullName(), result.getFullName());
-		assertEquals(userVO.getUserName(), result.getUserName());
-		assertEquals(userVO.getPassword(), result.getPassword());
+		var content = given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userToInsert)
+					.when()
+					.post()
+				.then()
+					.statusCode(200)
+						.extract()
+						.body()
+							.asString();
+		
+		UserVO result = objectMapper.readValue(content, UserVO.class);
+		assertNotNull(result);
+		assertNotNull(result.getFullName());
+		assertNotNull(result.getUserName());
+		assertEquals(userToInsert.getFullName(), result.getFullName());
+		assertEquals(userToInsert.getUserName(), result.getUserName());
+		assertEquals(userToInsert.getPassword(), result.getPassword());
 		assertEquals(mockPermission.mockPermissionsVO(1), result.getPermissions());		
 	}
 
 	@Test
 	@Order(4)
-	void testUpdateUser() {
-		Permission permission = mockPermission.mockEntity(1);
-		User user = input.mockEntity(1);
-		user.setPermissions(mockPermission.mockPermissions(1));
-		when(pRepository.findByDescription("DESCRIPTION TEST 1")).thenReturn(permission);
-		when(repository.findByUsername(user.getUserName())).thenReturn(user);
-		lenient().when(repository.save(user)).thenReturn(user);
-		UserVO userVO = input.mockEntityVO(1);
-		userVO.setPermissions(mockPermission.mockPermissionsVO(1));
+	void testUpdateUser() throws JsonMappingException, JsonProcessingException {
 		
-		var result = service.updateUser(userVO);
-		assertTrue(result.toString().contains("links: [</api/user>;rel=\"self\"]"));
-		assertEquals(userVO.getFullName(), result.getFullName());
-		assertEquals(userVO.getUserName(), result.getUserName());
-		assertEquals(userVO.getPassword(), result.getPassword());
-		assertEquals(mockPermission.mockPermissionsVO(1), result.getPermissions());		
+		UserVO userToUpdate = input.mockEntityVO(1); // usuario incluido no order(3) acima!
+		userToUpdate.setPermissions(mockPermission.mockPermissionsVO(2)); // alteramos a permissao
+		userToUpdate.setFullName("CHANGE USER NAME"); // alteramos o nome!
+		userToUpdate.setPassword(null);
+		
+		var content = given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userToUpdate)
+					.when()
+					.put()
+				.then()
+					.statusCode(200)
+						.extract()
+						.body()
+							.asString();
+		
+		UserVO result = objectMapper.readValue(content, UserVO.class);
+		assertNotNull(result);
+		assertNotNull(result.getFullName());
+		assertNotNull(result.getUserName());
+		assertEquals(userToUpdate.getFullName(), result.getFullName());
+		assertEquals(userToUpdate.getUserName(), result.getUserName());
+		assertEquals(mockPermission.mockPermissionsVO(2), result.getPermissions());		
+		
 	}
 
 	@Test
 	@Order(5)
-	void testUpdatePassword() {
+	void testUpdatePassword()  throws JsonMappingException, JsonProcessingException {
 		UserPasswordVO userPasswordVO = mockUserPassword.mockEntityVO(1);
-		User user = input.mockEntity(1);
-		user.setPermissions(mockPermission.mockPermissions(1));
-		when(repository.findByUsername(userPasswordVO.getUserName())).thenReturn(user);
-		lenient().when(repository.save(user)).thenReturn(user);
-		service.updatePassword(userPasswordVO);
+		userPasswordVO.setUserName("leandro");
+		userPasswordVO.setOldPassword("admin123");
+		userPasswordVO.setNewPassword("admin123");
+		
+		RequestSpecification specification = new RequestSpecBuilder()
+				.addHeader(TestConfigs.HEADER_PARAM_AUTHORIZATION, "Bearer " + accessToken)
+				.setBasePath("/api/user/updatepassword")
+				.setPort(TestConfigs.SERVER_PORT)
+					.addFilter(new RequestLoggingFilter(LogDetail.ALL))
+					.addFilter(new ResponseLoggingFilter(LogDetail.ALL))
+				.build();		
+		
+		given().spec(specification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userPasswordVO)
+					.when()
+					.put()
+				.then()
+					.statusCode(204)
+						.extract()
+						.body()
+							.asString();		
+		
 	}
 
 	@Test
 	@Order(6)
 	void testDisableOrEnableUser() {
 		UserEnabledVO userEnabledVO = mockUserEnabledVO.mockEntityVO(1);
-		User user = input.mockEntity(1);
-		user.setPermissions(mockPermission.mockPermissions(1));
-		when(repository.findByUsername(userEnabledVO.getUserName())).thenReturn(user);
-		lenient().when(repository.save(user)).thenReturn(user);
-		service.disableOrEnableUser(userEnabledVO);
+		userEnabledVO.setUserName("flavio");
+		userEnabledVO.setEnabled(false);
+		
+		RequestSpecification specification = new RequestSpecBuilder()
+				.addHeader(TestConfigs.HEADER_PARAM_AUTHORIZATION, "Bearer " + accessToken)
+				.setBasePath("/api/user/enabledordisable")
+				.setPort(TestConfigs.SERVER_PORT)
+					.addFilter(new RequestLoggingFilter(LogDetail.ALL))
+					.addFilter(new ResponseLoggingFilter(LogDetail.ALL))
+				.build();		
+		
+		given().spec(specification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userEnabledVO)
+					.when()
+					.put()
+				.then()
+					.statusCode(204)
+						.extract()
+						.body()
+							.asString();		
+
 	}
 
 	@Test
 	@Order(7)
 	void testCreateNullUser() {
-		Exception exception = assertThrows(RequiredObjectIsNullException.class, () -> {
-			service.createUser(null);
-		});
-		String expectedMessage = "It is not allowed to persist a null object!";
-		String actualMessage = exception.getMessage();
-		assertTrue(actualMessage.contains(expectedMessage));
+		given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					//.body()  --  sem usuario!
+					.when()
+					.post()
+				.then()
+					.statusCode(400)  // tem que retornar erro 400!
+						.extract()
+						.body()
+							.asString();
 	}
 
 	@Test
 	@Order(8)
 	void testUpdateNullUser() {
-		Exception exception = assertThrows(RequiredObjectIsNullException.class, () -> {
-			service.updateUser(null);
-		});
-		String expectedMessage = "It is not allowed to persist a null object!";
-		String actualMessage = exception.getMessage();
-		assertTrue(actualMessage.contains(expectedMessage));
+		given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					// .body(userToUpdate) -- igual ao order 7 (inclusao) mas esse é PUT (Alteracao)! 
+					.when()
+					.put()
+				.then()
+					.statusCode(400) // erro esperado!
+						.extract()
+						.body()
+							.asString();
 	}
 	
 	@Test
 	@Order(9)
 	void testCreateUserFound() {
-		UserVO userVO = input.mockEntityVO(1);
-		User user = input.mockEntity(1);
-		when(repository.findByUsername(userVO.getUserName())).thenReturn(user);
+		// teoricamente, esse usuario já foi incluido no order 3... tem que apresentar erro!
+		UserVO userToInsert = input.mockEntityVO(1); // novo usuario!
+		userToInsert.setPermissions(mockPermission.mockPermissionsVO(1));
 		
-		String name = userVO.getUserName();
-		Exception exception = assertThrows(UsernameNotFoundException.class, () -> {
-			service.createUser(userVO);
-		});
-		String expectedMessage = "Username " + name + " already exists!";
-		String actualMessage = exception.getMessage();
-		assertTrue(actualMessage.contains(expectedMessage));
+		given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userToInsert)
+					.when()
+					.post()
+				.then()
+					.statusCode(500) // erro esperado!
+						.extract()
+						.body()
+							.asString();
+
 	}
 
 	@Test
 	@Order(10)
 	void testUpdateUserNotFound() {
-		UserVO userVO = input.mockEntityVO(1);
-		when(repository.findByUsername(userVO.getUserName())).thenReturn(null);
+		UserVO userToUpdate = input.mockEntityVO(2); // usuario não existente!
 		
-		String name = userVO.getUserName();
-		Exception exception = assertThrows(UsernameNotFoundException.class, () -> {
-			service.updateUser(userVO);
-		});
-		String expectedMessage = "Username " + name + " not found!";
-		String actualMessage = exception.getMessage();
-		assertTrue(actualMessage.contains(expectedMessage));
+		given().spec(userSpecification)
+				.contentType(TestConfigs.CONTENT_TYPE_JSON)
+					.body(userToUpdate)
+					.when()
+					.put()
+				.then()
+					.statusCode(500) // erro esperado!
+						.extract()
+						.body()
+							.asString();
 	}
 	
 }

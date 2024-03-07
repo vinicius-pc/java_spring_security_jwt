@@ -14,15 +14,17 @@ public class MockPermissionVO {
 
 	public List<PermissionVO> mockEntityListVO() {
 		List<PermissionVO> lista = new ArrayList<PermissionVO>();
-		for (int i = 0; i < 14; i++) {
-			lista.add(mockEntityVO(i));
-		}
+		lista.add(mockEntityVO(1));
+		lista.add(mockEntityVO(2));
 		return lista;
 	}
 	
 	public PermissionVO mockEntityVO(Integer number) {
 		PermissionVO permission = new PermissionVO();
-		permission.setDescription("DESCRIPTION TEST "+number);
+		permission.setDescription("ADMIN");	
+		if (number==2) {
+			permission.setDescription("MANAGER");	
+		}
 		return permission;
 	}
 	
@@ -40,7 +42,10 @@ public class MockPermissionVO {
 	public Permission mockEntity(Integer number) {
 		Permission permission = new Permission();
 		permission.setId(number.longValue());
-		permission.setDescription("DESCRIPTION TEST "+number);		
+		permission.setDescription("ADMIN");		
+		if (number==2) {
+			permission.setDescription("MANAGER");					
+		}
 		return permission;
 	}
 	

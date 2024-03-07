@@ -12,7 +12,7 @@ public class MockUserPasswordVO {
 	public UserPasswordVO mockEntityVO(Integer number) {
 		UserPasswordVO userPasswordVO = new UserPasswordVO();
 		userPasswordVO.setUserName("USER NAME TEST "+number);
-		userPasswordVO.setOldPassword("OLD PASSWORD TEST "+number);
+		userPasswordVO.setOldPassword("PASSWORD TEST "+number);
 		userPasswordVO.setNewPassword("NEW PASSWORD TEST "+number);
 		return userPasswordVO;
 	}
