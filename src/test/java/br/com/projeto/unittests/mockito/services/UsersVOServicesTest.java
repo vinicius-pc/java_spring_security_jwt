@@ -3,6 +3,7 @@ package br.com.projeto.unittests.mockito.services;
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,12 +62,11 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		mockPermission = new MockPermissionVO();
 		mockUserEnabledVO = new MockUserEnabledVO();
 		input = new MockUserVO();
-		//MockitoAnnotations.openMocks(this);
 	}
 	
 	@Test
 	@Order(0)
-	public void authorization() throws JsonMappingException, JsonProcessingException {
+	public void authorization() {
 		// primeiramente, devemos obter um JWT acces token valido!
 		AccountCredentialsVO user = new AccountCredentialsVO("leandro", "admin123");
 		
@@ -112,7 +112,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		assertNotNull(result);
 		assertNotNull(result.getFullName());
 		assertNotNull(result.getUserName());
-		assertEquals("Leandro Costa", result.getFullName());
+		assertEquals("Leandro user", result.getFullName());
 		assertEquals("leandro", result.getUserName());
 	}
 
@@ -123,7 +123,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		var content = given().spec(userSpecification)
 				.contentType(TestConfigs.CONTENT_TYPE_JSON)
 				.accept(TestConfigs.CONTENT_TYPE_JSON)
-				.queryParams("page", 1, "size", 1, "direction", "asc")
+				.queryParams("page", 1, "size", 5, "direction", "asc")
 					.when()
 					.get()
 				.then()
@@ -139,6 +139,21 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 		assertNotNull(user.getFullName());
 		assertNotNull(user.getUserName());
 		assertNotNull(user.getLinks());
+		
+		// testar os links HATEOAS - tomar cuidado com a porta : 8888, se for diferente, tem que alterar aqui!
+		assertTrue(content.contains("\"_links\":{\"self\":{\"href\":\"http://localhost:8888/api/user/leandro\"}}}"));
+		assertTrue(content.contains("\"_links\":{\"self\":{\"href\":\"http://localhost:8888/api/user/samuel\"}}}"));
+		assertTrue(content.contains("\"_links\":{\"self\":{\"href\":\"http://localhost:8888/api/user/sebastian\"}}}"));
+		assertTrue(content.contains("\"_links\":{\"self\":{\"href\":\"http://localhost:8888/api/user/taylor\"}}}"));
+		assertTrue(content.contains("\"_links\":{\"self\":{\"href\":\"http://localhost:8888/api/user/user\"}}}"));
+		
+		assertTrue(content.contains("{\"first\":{\"href\":\"http://localhost:8888/api/user?direction=asc&page=0&size=5&sort=userName,asc\"}"));
+		assertTrue(content.contains("\"prev\":{\"href\":\"http://localhost:8888/api/user?direction=asc&page=0&size=5&sort=userName,asc\"}"));
+		assertTrue(content.contains("\"self\":{\"href\":\"http://localhost:8888/api/user?page=1&size=5&direction=asc\"}"));
+		assertTrue(content.contains("\"last\":{\"href\":\"http://localhost:8888/api/user?direction=asc&page=1&size=5&sort=userName,asc\"}}"));
+		
+		assertTrue(content.contains("\"page\":{\"size\":5,\"totalElements\":10,\"totalPages\":2,\"number\":1}}"));
+		
 		
 	}
 
@@ -201,7 +216,7 @@ class UsersVOServicesTest extends AbstractIntegrationTest {
 
 	@Test
 	@Order(5)
-	void testUpdatePassword()  throws JsonMappingException, JsonProcessingException {
+	void testUpdatePassword()  {
 		UserPasswordVO userPasswordVO = mockUserPassword.mockEntityVO(1);
 		userPasswordVO.setUserName("leandro");
 		userPasswordVO.setOldPassword("admin123");
